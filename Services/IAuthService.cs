@@ -6,8 +6,10 @@ namespace JWTAuthDotNetIdentity.Services
 {
     public interface IAuthService
     {
-        Task<ApiResponse ?> RegisterAsync(RegisterDTO registerDTO);
+        Task<ApiResponse?> RegisterAsync(RegisterDTO registerDTO);
 
-        Task<ApiResponse ?> LoginAsync(LoginDTO loginDTO);
+        Task<ApiResponse?> LoginAsync(LoginDTO loginDTO);
+
+        Task<TokenResponseDTO?> RefreshTokens(TokenRequestDTO tokenRequestDTO);
     }
 }

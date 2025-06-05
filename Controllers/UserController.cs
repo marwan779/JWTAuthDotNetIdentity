@@ -71,6 +71,16 @@ namespace JWTAuthDotNetIdentity.Controllers
 
         }
 
+        [HttpPost("RefreshTokens")]
+        public async Task<IActionResult> RefreshTokens(TokenRequestDTO tokenRequestDTO)
+        {
+            TokenResponseDTO? tokenResponse = await _authService.RefreshTokens(tokenRequestDTO);
+
+            if(tokenResponse == null || tokenResponse.RefreshToken == null || tokenResponse.AccessToken == null) 
+                return Unauthorized("Invaild Refresh Token !");
+
+            return Ok(tokenResponse);
+        }
 
         // For testing 
 

@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Net;
+using System.Security.Cryptography;
 
 namespace JWTAuthDotNetIdentity.Services
 {
@@ -26,7 +27,7 @@ namespace JWTAuthDotNetIdentity.Services
             _config = config;
         }
 
-        public async Task<ApiResponse ?> LoginAsync(LoginDTO loginDTO)
+        public async Task<ApiResponse?> LoginAsync(LoginDTO loginDTO)
         {
             if (loginDTO == null)
                 return null;
@@ -50,21 +51,27 @@ namespace JWTAuthDotNetIdentity.Services
                     ErrorMessage = "Wrong password !",
                     Result = null,
                     IsSuccess = false,
-                    StatusCode = HttpStatusCode.BadRequest 
+                    StatusCode = HttpStatusCode.BadRequest
                 };
 
-            string token = await GenerateAccessToken(applicationUser);
+
+            TokenResponseDTO tokenResponseDTO = new TokenResponseDTO()
+            {
+                AccessToken = await GenerateAccessToken(applicationUser),
+                RefreshToken = await SaveRefreshToken(applicationUser),
+            };
+
 
             return new ApiResponse()
             {
                 ErrorMessage = "",
-                Result = token,
+                Result = tokenResponseDTO,
                 IsSuccess = true,
                 StatusCode = HttpStatusCode.OK
             };
         }
 
-        public async Task<ApiResponse ?> RegisterAsync(RegisterDTO registerDTO)
+        public async Task<ApiResponse?> RegisterAsync(RegisterDTO registerDTO)
         {
 
             if (registerDTO == null)
@@ -85,14 +92,14 @@ namespace JWTAuthDotNetIdentity.Services
                         StatusCode = HttpStatusCode.Conflict
                     };
                 }
-                else if(existingEmailUser != null)
+                else if (existingEmailUser != null)
                 {
                     return new ApiResponse()
                     {
                         ErrorMessage = $"A user with the email '{registerDTO.Email}' already exists!",
                         Result = null,
                         IsSuccess = false,
-                        StatusCode = HttpStatusCode.Conflict 
+                        StatusCode = HttpStatusCode.Conflict
                     };
                 }
                 else
@@ -153,6 +160,22 @@ namespace JWTAuthDotNetIdentity.Services
 
         }
 
+        public async Task<TokenResponseDTO?> RefreshTokens(TokenRequestDTO tokenRequestDTO)
+        {
+            ApplicationUser? applicationUser = await ValidateRefreshToken(tokenRequestDTO);
+
+            if (applicationUser == null)
+            {
+                return null;
+            }
+
+            return new TokenResponseDTO()
+            {
+                AccessToken = await GenerateAccessToken(applicationUser),
+                RefreshToken = await SaveRefreshToken(applicationUser),
+            };
+        }
+
         private bool UserNameUnique(string userName)
         {
             bool result = false;
@@ -199,6 +222,38 @@ namespace JWTAuthDotNetIdentity.Services
 
             return finalToken;
 
+        }
+
+        private async Task<string> GenerateRefreshToken()
+        {
+            var randomNumber = new byte[32];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(randomNumber);
+            return Convert.ToBase64String(randomNumber);
+        }
+
+        private async Task<string> SaveRefreshToken(ApplicationUser applicationUser)
+        {
+            string refreshToken = await GenerateRefreshToken();
+            applicationUser.RefreshToken = refreshToken;
+            applicationUser.RefreshTokenExpirationDate = DateTime.Now.AddDays(7);
+            await _context.SaveChangesAsync();
+            return refreshToken;
+        }
+
+        private async Task<ApplicationUser ?> ValidateRefreshToken(TokenRequestDTO tokenRequestDTO)
+        {
+            ApplicationUser? applicationUser = await _context.ApplicationUsers
+                .FirstOrDefaultAsync(u => u.Id == tokenRequestDTO.UserId);
+
+            if(applicationUser == null 
+                || applicationUser.RefreshToken != tokenRequestDTO.RefreshToken
+                || applicationUser.RefreshTokenExpirationDate <= DateTime.Now)
+            {
+                return null;
+            }
+
+            return applicationUser;
         }
     }
 }
