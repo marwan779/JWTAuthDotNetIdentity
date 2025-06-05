@@ -1,4 +1,5 @@
-﻿using JWTAuthDotNetIdentity.Models;
+﻿using System.Security.Claims;
+using JWTAuthDotNetIdentity.Models;
 using JWTAuthDotNetIdentity.Models.DTOs;
 using JWTAuthDotNetIdentity.Models.Entities;
 using JWTAuthDotNetIdentity.Services;
@@ -74,13 +75,30 @@ namespace JWTAuthDotNetIdentity.Controllers
         [HttpPost("RefreshTokens")]
         public async Task<IActionResult> RefreshTokens(TokenRequestDTO tokenRequestDTO)
         {
-            TokenResponseDTO? tokenResponse = await _authService.RefreshTokens(tokenRequestDTO);
+            TokenResponseDTO? tokenResponse = await _authService.RefreshTokensAsync(tokenRequestDTO);
 
             if(tokenResponse == null || tokenResponse.RefreshToken == null || tokenResponse.AccessToken == null) 
                 return Unauthorized("Invaild Refresh Token !");
 
             return Ok(tokenResponse);
         }
+
+        [Authorize]
+        [HttpPost("ChangePassword")]
+        public async Task<IActionResult> ChangePassword(ChangePasswordDTO changePasswordDTO)
+        {
+            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            ApiResponse = await _authService.ChangePasswordAsync(userId, changePasswordDTO);
+
+            if(!ApiResponse.IsSuccess)
+            {
+                return BadRequest(ApiResponse.ErrorMessage);
+            }
+
+            return Ok(ApiResponse);
+        }
+
 
         // For testing 
 

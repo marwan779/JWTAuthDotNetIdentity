@@ -160,7 +160,7 @@ namespace JWTAuthDotNetIdentity.Services
 
         }
 
-        public async Task<TokenResponseDTO?> RefreshTokens(TokenRequestDTO tokenRequestDTO)
+        public async Task<TokenResponseDTO?> RefreshTokensAsync(TokenRequestDTO tokenRequestDTO)
         {
             ApplicationUser? applicationUser = await ValidateRefreshToken(tokenRequestDTO);
 
@@ -174,6 +174,47 @@ namespace JWTAuthDotNetIdentity.Services
                 AccessToken = await GenerateAccessToken(applicationUser),
                 RefreshToken = await SaveRefreshToken(applicationUser),
             };
+        }
+
+        public async Task<ApiResponse?> ChangePasswordAsync(string userId, ChangePasswordDTO changePasswordDTO)
+        {
+            ApplicationUser? applicationUser = await _context.ApplicationUsers
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (applicationUser == null)
+            {
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.NotFound,
+                    ErrorMessage = "No such user !",
+                    Result = null,
+                };
+            }
+
+            var result = await _userManager
+                .ChangePasswordAsync(applicationUser, changePasswordDTO.CurrentPassword, changePasswordDTO.NewPassword);
+
+            if (!result.Succeeded)
+            {
+                var errorDescription = string.Join("; ", result.Errors.Select(e => e.Description));
+
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.BadRequest,
+                    ErrorMessage = errorDescription,
+                    Result = null,
+                };
+            }
+
+            return new ApiResponse()
+            {
+                IsSuccess = true,
+                StatusCode = HttpStatusCode.OK,
+            };
+
+
         }
 
         private bool UserNameUnique(string userName)
