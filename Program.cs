@@ -1,5 +1,6 @@
 
 using System.Text;
+using JWTAuthDotNetIdentity.Configurations;
 using JWTAuthDotNetIdentity.Data;
 using JWTAuthDotNetIdentity.Models.Entities;
 using JWTAuthDotNetIdentity.Services;
@@ -18,7 +19,9 @@ namespace JWTAuthDotNetIdentity
             var builder = WebApplication.CreateBuilder(args);
 
             // Add services to the container.
-            string Key = builder.Configuration.GetValue<string>("AppSettings:SecretKey");
+            string? Key = builder.Configuration.GetValue<string>("AppSettings:SecretKey");
+
+            builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
 
             builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
                 .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -28,7 +31,7 @@ namespace JWTAuthDotNetIdentity
                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             builder.Services.AddScoped<IAuthService, AuthService>();
-
+            builder.Services.AddTransient<IMailService, MailService>();
 
             builder.Services.AddAuthentication(a =>
             {

@@ -217,6 +217,95 @@ namespace JWTAuthDotNetIdentity.Services
 
         }
 
+        public async Task<ApiResponse?> GenerateResetPasswordTokenAsync(string Email)
+        {
+            ApplicationUser? applicationUser = await _userManager.FindByEmailAsync(Email);
+
+            if (applicationUser == null)
+            {
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.NotFound,
+                    ErrorMessage = "No user with this email found",
+                    Result = null,
+                };
+            }
+
+            ResetPasswordToken resetPasswordToken = new ResetPasswordToken()
+            {
+                UserId = applicationUser.Id,
+                ExpiresAt = DateTime.Now.AddMinutes(15),
+                Token = await _userManager.GeneratePasswordResetTokenAsync(applicationUser),
+                ApplicationUser = applicationUser
+            };
+
+            _context.ResetPasswordTokens.Add(resetPasswordToken);
+            await _context.SaveChangesAsync();
+
+            return new ApiResponse()
+            {
+                IsSuccess = true,
+                StatusCode = HttpStatusCode.OK,
+                Result = resetPasswordToken,
+            };
+        }
+
+        public async Task<ApiResponse?> ResetPasswordAsync(ResetPasswordDTO resetPasswordDTO)
+        {
+            ResetPasswordToken? resetPasswordToken = 
+                await _context.ResetPasswordTokens.FirstOrDefaultAsync(t => t.Token == resetPasswordDTO.Token);
+
+            if (resetPasswordToken == null || resetPasswordToken.IsUsed == true)
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.NotFound,
+                    ErrorMessage = "Invaild Token !",
+                    Result = null,
+                };
+
+            if(resetPasswordToken.ExpiresAt <= DateTime.Now)
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.NotFound,
+                    ErrorMessage = "Expired Token !",
+                    Result = null,
+                };
+
+            ApplicationUser? applicationUser = await _context.ApplicationUsers
+                .FirstOrDefaultAsync(a => a.Id == resetPasswordToken.UserId);
+
+            var result = await _userManager
+                .ResetPasswordAsync(applicationUser, resetPasswordDTO.Token, resetPasswordDTO.NewPassword);
+
+            if(!result.Succeeded)
+            {
+                var errorDescription = string.Join("; ", result.Errors.Select(e => e.Description));
+
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.NotFound,
+                    ErrorMessage = errorDescription,
+                    Result = null,
+                };
+            }
+
+            resetPasswordToken.IsUsed = true;
+            resetPasswordToken.ExpiresAt = DateTime.Now;
+
+            _context.ResetPasswordTokens.Update(resetPasswordToken);
+            await _context.SaveChangesAsync();
+
+            return new ApiResponse()
+            {
+                IsSuccess = true,
+                StatusCode = HttpStatusCode.OK,
+            };
+        }
+
         private bool UserNameUnique(string userName)
         {
             bool result = false;
@@ -296,5 +385,6 @@ namespace JWTAuthDotNetIdentity.Services
 
             return applicationUser;
         }
+
     }
 }

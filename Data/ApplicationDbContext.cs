@@ -12,5 +12,6 @@ namespace JWTAuthDotNetIdentity.Data
         }
 
         public DbSet<ApplicationUser> ApplicationUsers { get; set; }
+        public DbSet<ResetPasswordToken> ResetPasswordTokens { get; set; }
     }
 }
