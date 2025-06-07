@@ -109,7 +109,7 @@ namespace JWTAuthDotNetIdentity.Controllers
 
                 Here is your password reset token:
 
-                {resetPasswordToken.Token}
+                {resetPasswordToken.Id}
 
                 This token will expire on {resetPasswordToken.ExpiresAt:u} and can only be used once.
 
@@ -132,7 +132,7 @@ namespace JWTAuthDotNetIdentity.Controllers
         [HttpPost("Reset-Password")]
         public async Task<IActionResult> ResetPassword(ResetPasswordDTO resetPasswordDTO)
         {
-            if (resetPasswordDTO.NewPassword == null || resetPasswordDTO.Token == null) return BadRequest();
+            if (resetPasswordDTO.NewPassword == null || resetPasswordDTO.TokenId == null) return BadRequest();
 
             ApiResponse = await _authService.ResetPasswordAsync(resetPasswordDTO);
 

@@ -254,7 +254,7 @@ namespace JWTAuthDotNetIdentity.Services
         public async Task<ApiResponse?> ResetPasswordAsync(ResetPasswordDTO resetPasswordDTO)
         {
             ResetPasswordToken? resetPasswordToken = 
-                await _context.ResetPasswordTokens.FirstOrDefaultAsync(t => t.Token == resetPasswordDTO.Token);
+                await _context.ResetPasswordTokens.FirstOrDefaultAsync(t => t.Id == resetPasswordDTO.TokenId);
 
             if (resetPasswordToken == null || resetPasswordToken.IsUsed == true)
                 return new ApiResponse()
@@ -278,7 +278,7 @@ namespace JWTAuthDotNetIdentity.Services
                 .FirstOrDefaultAsync(a => a.Id == resetPasswordToken.UserId);
 
             var result = await _userManager
-                .ResetPasswordAsync(applicationUser, resetPasswordDTO.Token, resetPasswordDTO.NewPassword);
+                .ResetPasswordAsync(applicationUser, resetPasswordToken.Token, resetPasswordDTO.NewPassword);
 
             if(!result.Succeeded)
             {
