@@ -1,9 +1,8 @@
+# JWT Authentication with .NET Identity
 
-# 🔐 JWTAuthDotNetIdentity
+## Overview
 
-A complete Authentication & Authorization system built with **ASP.NET Core 8**, **JWT**, **Google OAuth**, and **ASP.NET Identity**. This API-first project supports secure login, token refresh, external authentication, password reset, password change, Email reset, Email Change and account removal — with token-based email flows for sensitive operations.
-
----
+A complete Authentication & Authorization system built with ASP.NET Core 8, JWT, Google OAuth, and ASP.NET Identity. This API-first project supports secure login, token refresh, external authentication, password reset, password change, Email reset, Email Change and account removal — with token-based email flows for sensitive operations.
 
 ## 🚀 Features
 
@@ -17,21 +16,33 @@ A complete Authentication & Authorization system built with **ASP.NET Core 8**, 
 - 🌐 **Swagger UI** with JWT Bearer support
 - 🧪 **CORS** & HTTPS enforced for modern client integration
 
----
+## Project Structure
 
-## 📂 Project Structure
-
-```bash
+```
 .
 ├── Controllers/
 │   └── UserController.cs
 ├── Data/
 │   └── ApplicationDbContext.cs
 ├── Models/
-│   ├── DTO/
+│   ├── DTOs/
+│   │   ├── ApplicationUserDTO.cs
+│   │   ├── ChangeEmailDTO.cs
+│   │   ├── ChangePasswordDTO.cs
+│   │   ├── ExternalLoginDTO.cs
+│   │   ├── LoginDTO.cs
+│   │   ├── RegisterDTO.cs
+│   │   ├── RemoveAccountDTO.cs
+│   │   ├── ResetPasswordDTO.cs
+│   │   ├── TokenRequestDTO.cs
+│   │   └── TokenResponseDTO.cs
 │   ├── Entities/
-│   └── ApiResponse.cs
-|   |__ MailData.cs
+│   │   ├── ApplicationUser.cs
+│   │   ├── RefreshToken.cs
+│   │   ├── RemoveAccountToken.cs
+│   │   └── ResetPasswordToken.cs
+│   ├── ApiResponse.cs
+│   └── MailData.cs
 ├── Services/
 │   ├── IAuthService.cs
 │   ├── IMailService.cs
@@ -41,97 +52,135 @@ A complete Authentication & Authorization system built with **ASP.NET Core 8**, 
 │   └── MailSettings.cs
 ├── Program.cs
 └── appsettings.json
-````
+```
 
----
+## Features
 
-## ⚙️ Technologies
+### Authentication
+- **User Registration**: Create new accounts with validation
+- **Login**: JWT token generation with 30-minute expiration
+- **Refresh Tokens**: 7-day validity with automatic revocation
+- **Google OAuth**: Social login integration
+- **Logout**: Token revocation system
 
-* [.NET 8](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
-* ASP.NET Core Web API
-* ASP.NET Identity
-* JWT (Json Web Tokens)
-* Google OAuth (via `Microsoft.AspNetCore.Authentication.Google`)
-* Entity Framework Core (SQL Server)
-* Swagger / Swashbuckle
-* CORS middleware
-* MailKit / SMTP
+### Password Management
+- Password change for authenticated users
+- Password reset via email token
+- Secure password requirements (6+ chars, uppercase, lowercase, digit, special char)
 
----
+### Account Management
+- Email change functionality
+- Account deletion with confirmation
+- Token-based security for sensitive operations
 
-## 🔑 Authentication Workflow
+### Security
+- Refresh token rotation
+- IP address tracking for token usage
+- Automatic token revocation
+- Role-based authorization (User/Admin)
 
-### 🔸 Register & Login (Local)
+## API Endpoints
 
-* POST `/api/user/register`
-* POST `/api/user/login` → Returns JWT + Refresh Token
+### Authentication
+- `POST /api/User/Register-User` - Register a new user
+- `POST /api/User/Login-User` - Login with credentials
+- `POST /api/User/Refresh-Tokens` - Refresh access token
+- `GET /api/User/login-google` - Initiate Google OAuth flow
+- `GET /api/User/google-callback` - Google OAuth callback
+- `POST /api/User/Logout` - Logout and revoke tokens
 
-### 🔸 Google OAuth Login
+### Password Management
+- `POST /api/User/Get-Reset-Password-Token` - Request password reset token
+- `POST /api/User/Reset-Password` - Reset password with token
+- `POST /api/User/Change-Password` - Change password (authenticated)
 
-* GET `/api/user/login-google` → Redirect to Google
-* GET `/api/user/google-callback` → Retrieves Google profile and returns JWT
+### Account Management
+- `POST /api/User/Change-Email` - Change email (authenticated)
+- `POST /api/User/Get-Remove-Account-Token` - Request account deletion token
+- `POST /api/User/Remove-Account` - Delete account with token
 
-### 🔄 Refresh Token
+### Testing
+- `GET /api/User/TestAuthentication` - Test authentication
+- `GET /api/User/TestAuthorization` - Test admin authorization
 
-* POST `/api/user/refresh-token`
+## Setup Instructions
 
-### 📨 Reset Password
+1. **Prerequisites**:
+   - .NET 8.0 SDK
+   - SQL Server (or configure another database provider)
+   - Google OAuth credentials (for social login)
 
-* POST `/api/user/generate-reset-password-token`
-* POST `/api/user/reset-password`
+2. **Configuration**:
+   - Update `appsettings.json` with:
+     - Database connection string
+     - JWT secret key, issuer, and audience
+     - Email server settings (for password reset emails)
+     - Google OAuth credentials
 
-### ❌ Remove Account
+3. **Database**:
+   - Apply migrations: `dotnet ef database update`
 
-* POST `/api/user/generate-remove-account-token`
-* POST `/api/user/remove-account`
+4. **Running**:
+   - `dotnet run`
 
-### 🔒 Change Password
+## Dependencies
 
-* POST `/api/user/Change-Password`
+- ASP.NET Core 8.0
+- Entity Framework Core
+- Identity Framework
+- JWT Authentication
+- MailKit (for email)
+- Google Authentication
 
-### 🔒 Change Email
+## Security Considerations
 
-* POST `/api/user/Change-Email`
+- Always use HTTPS in production
+- Keep JWT secret keys secure
+- Regularly rotate JWT signing keys
+- Implement rate limiting on authentication endpoints
+- Store refresh tokens securely with expiration
 
----
+## Example Requests
 
-## ✉️ Email Sender
+### Registration
+```json
+POST /api/User/Register-User
+{
+  "fullName": "John Doe",
+  "userName": "johndoe",
+  "email": "john@example.com",
+  "phoneNumber": "1234567890",
+  "password": "SecurePassword123!"
+}
+```
 
-Implements `IMailService` to send transactional emails:
+### Login
+```json
+POST /api/User/Login-User
+{
+  "userName": "johndoe",
+  "password": "SecurePassword123!"
+}
+```
 
-* **Reset password token**
-* **Remove account token**
+### Password Reset
+```json
+POST /api/User/Reset-Password
+{
+  "tokenId": "token-guid-here",
+  "newPassword": "NewSecurePassword123!"
+}
+```
 
-**MailSettings** are configured in `appsettings.json`:
+## Response Format
 
-
-
----
-
-## 🔐 Swagger & JWT
-
-1. Run the project:
-   `https://localhost:7011/swagger`
-
-2. Click "Authorize"
-   Enter:
-
-   ```
-   Bearer <your_token_here>
-   ```
-
-3. Now all `[Authorize]` endpoints will be testable.
-
----
-
-## 📦 NuGet Packages Used
-
-* `Microsoft.AspNetCore.Identity.EntityFrameworkCore`
-* `Microsoft.AspNetCore.Authentication.JwtBearer`
-* `Microsoft.AspNetCore.Authentication.Google`
-* `Microsoft.EntityFrameworkCore.SqlServer`
-* `Swashbuckle.AspNetCore`
-* `MailKit`
-* `System.IdentityModel.Tokens.Jwt`
-
+All responses follow the `ApiResponse` format:
+```json
+{
+  "isSuccess": true,
+  "statusCode": 200,
+  "errorMessage": "",
+  "result": { /* response data */ }
+}
+```
 
