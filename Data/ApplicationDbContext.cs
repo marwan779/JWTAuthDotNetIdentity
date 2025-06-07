@@ -1,4 +1,5 @@
-﻿using JWTAuthDotNetIdentity.Models.Entities;
+﻿using JWTAuthDotNetIdentity.Models;
+using JWTAuthDotNetIdentity.Models.Entities;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,5 +14,6 @@ namespace JWTAuthDotNetIdentity.Data
 
         public DbSet<ApplicationUser> ApplicationUsers { get; set; }
         public DbSet<ResetPasswordToken> ResetPasswordTokens { get; set; }
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
     }
 }
