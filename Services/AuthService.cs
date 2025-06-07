@@ -306,6 +306,45 @@ namespace JWTAuthDotNetIdentity.Services
             };
         }
 
+        public async Task<TokenResponseDTO?> ExternalLoginAsync(ExternalLoginDTO loginDTO)
+        {
+            var user = await _userManager.FindByLoginAsync(loginDTO.Provider, loginDTO.ProviderUserId);
+
+            if (user == null)
+            {
+                user = await _userManager.FindByEmailAsync(loginDTO.Email);
+                if (user == null)
+                {
+                    user = new ApplicationUser
+                    {
+                        UserName = loginDTO.Email,
+                        Email = loginDTO.Email,
+                        EmailConfirmed = true,
+                        FullName = loginDTO.Name,
+                        PhoneNumber = loginDTO.PhoneNumber,
+                    };
+                    var createResult = await _userManager.CreateAsync(user);
+                    if (!createResult.Succeeded) return null;
+                }
+
+                var loginInfo = new UserLoginInfo(loginDTO.Provider, loginDTO.ProviderUserId, loginDTO.Provider);
+                var addLoginResult = await _userManager.AddLoginAsync(user, loginInfo);
+                if (!addLoginResult.Succeeded) return null;
+            }
+
+            return new TokenResponseDTO()
+            {
+                AccessToken = await GenerateAccessToken(user),
+                RefreshToken = await SaveRefreshToken(user)
+            };
+
+        }
+
+        public Task<ApiResponse?> LogoutAsync(string userId)
+        {
+            throw new NotImplementedException();
+        }
+
         private bool UserNameUnique(string userName)
         {
             bool result = false;
@@ -386,5 +425,6 @@ namespace JWTAuthDotNetIdentity.Services
             return applicationUser;
         }
 
+       
     }
 }

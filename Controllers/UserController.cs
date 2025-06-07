@@ -3,9 +3,11 @@ using JWTAuthDotNetIdentity.Models;
 using JWTAuthDotNetIdentity.Models.DTOs;
 using JWTAuthDotNetIdentity.Models.Entities;
 using JWTAuthDotNetIdentity.Services;
+using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Identity;
 
 namespace JWTAuthDotNetIdentity.Controllers
 {
@@ -118,7 +120,7 @@ namespace JWTAuthDotNetIdentity.Controllers
                 If you did not request this, please ignore this message.
 
                 Thanks,  
-                Auth Team"
+                JWT Authentication .NET Identity"
             };
 
             bool result = _mailService.SendMail(mailData);
@@ -159,6 +161,54 @@ namespace JWTAuthDotNetIdentity.Controllers
         }
 
 
+        [HttpGet("login-google")]
+        public IActionResult LoginWithGoogle()
+        {
+            var redirectUrl = Url.Action("GoogleCallback", "User");
+            var properties = new AuthenticationProperties { RedirectUri = redirectUrl };
+            return Challenge(properties, GoogleDefaults.AuthenticationScheme);
+        }
+
+
+        [HttpGet("google-callback")]
+        public async Task<IActionResult> GoogleCallback()
+        {
+            // Use "External" instead of CookieAuthenticationDefaults.AuthenticationScheme
+            var result = await HttpContext.AuthenticateAsync(IdentityConstants.ExternalScheme);
+            if (!result.Succeeded)
+                return Unauthorized("External authentication failed.");
+
+            var claims = result.Principal.Identities.FirstOrDefault()?.Claims;
+            var email = claims?.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+            var name = claims?.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value;
+            var googleId = claims?.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+            var phoneNumber = claims?.FirstOrDefault(c => c.Type == ClaimTypes.MobilePhone)?.Value;
+
+            var loginDto = new ExternalLoginDTO
+            {
+                Provider = "Google",
+                ProviderUserId = googleId,
+                Email = email,
+                Name = name,
+                PhoneNumber = phoneNumber
+            };
+
+            var jwt = await _authService.ExternalLoginAsync(loginDto);
+            if (jwt == null)
+                return BadRequest("JWT token not issued");
+
+            // Optional: Clear the external cookie
+            await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+
+            return Ok(jwt); // You can also redirect to your frontend with the token in query string
+        }
+
+        [Authorize]
+        [HttpGet]
+        public async Task<IActionResult> Logout()
+        {
+            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        }
 
         // For testing 
 

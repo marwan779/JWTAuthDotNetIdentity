@@ -4,6 +4,8 @@ using JWTAuthDotNetIdentity.Configurations;
 using JWTAuthDotNetIdentity.Data;
 using JWTAuthDotNetIdentity.Models.Entities;
 using JWTAuthDotNetIdentity.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -28,16 +30,20 @@ namespace JWTAuthDotNetIdentity
                 .AddDefaultTokenProviders();
 
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
-               options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+               
+            options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddTransient<IMailService, MailService>();
 
-            builder.Services.AddAuthentication(a =>
+            builder.Services.AddAuthentication(options =>
             {
-                a.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                a.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-            }).AddJwtBearer(x => {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme)
+            .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, x =>
+            {
                 x.RequireHttpsMetadata = false;
                 x.SaveToken = true;
                 x.TokenValidationParameters = new TokenValidationParameters
@@ -50,6 +56,12 @@ namespace JWTAuthDotNetIdentity
                     ValidAudience = builder.Configuration["AppSettings:Audience"],
                     ValidateLifetime = true,
                 };
+            })
+            .AddGoogle(GoogleDefaults.AuthenticationScheme, options =>
+            {
+                options.ClientId = builder.Configuration["Authentication:Google:ClientId"];
+                options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
+                options.CallbackPath = "/signin-google"; // Optional, default value
             });
 
 
@@ -59,41 +71,51 @@ namespace JWTAuthDotNetIdentity
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
 
-            builder.Services.AddSwaggerGen(options => {
-            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            builder.Services.AddSwaggerGen(options =>
             {
-                Description =
-                    "JWT Authorization header using the Bearer scheme. \r\n\r\n " +
-                    "Enter 'Bearer' [space] and then your token in the text input below.\r\n\r\n" +
-                    "Example: \"Bearer 12345abcdef\"",
-                Name = "Authorization",
-                In = ParameterLocation.Header,
-                Scheme = "Bearer"
-            });
-            options.AddSecurityRequirement(new OpenApiSecurityRequirement()
-            {
+                options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
-                    new OpenApiSecurityScheme
+                    Name = "Authorization",
+                    Type = SecuritySchemeType.ApiKey,
+                    Scheme = "Bearer",
+                    BearerFormat = "JWT",
+                    In = ParameterLocation.Header,
+                    Description = "Enter: Bearer {your JWT token}"
+                });
+
+                options.AddSecurityRequirement(new OpenApiSecurityRequirement
+                {
                     {
-                        Reference = new OpenApiReference
-                                    {
-                                        Type = ReferenceType.SecurityScheme,
-                                        Id = "Bearer"
-                                    },
-                        Scheme = "oauth2",
-                        Name = "Bearer",
-                        In = ParameterLocation.Header
-                    },
-                    new List<string>()
-                }
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference
+                            {
+                                Id = "Bearer",
+                                Type = ReferenceType.SecurityScheme
+                            }
+                        },
+                        new List<string>()
+                    }
+                });
+
+                options.SwaggerDoc("v1", new OpenApiInfo
+                {
+                    Title = "JWT Authentication .NET Identity",
+                    Version = "v1"
+                });
             });
-            options.SwaggerDoc("v1", new OpenApiInfo
+
+
+
+            builder.Services.AddCors(options =>
             {
-                Version = "v1.0",
-                Title = "Authorization And Authentication Using JWT + DotNet Identity Scheme",
-                TermsOfService = new Uri("https://example.com/terms"),
+                options.AddPolicy("AllowAll", policy =>
+                {
+                    policy.AllowAnyOrigin()
+                          .AllowAnyHeader()
+                          .AllowAnyMethod();
+                });
             });
-        });
 
 
 
@@ -124,6 +146,8 @@ namespace JWTAuthDotNetIdentity
             }
 
             app.UseHttpsRedirection();
+
+            app.UseCors("AllowAll");
 
             app.UseAuthentication();
 
