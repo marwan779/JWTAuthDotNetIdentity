@@ -14,6 +14,8 @@ namespace JWTAuthDotNetIdentity.Services
         Task<ApiResponse?> GenerateResetPasswordTokenAsync(string Email);
         Task<ApiResponse?> ResetPasswordAsync(ResetPasswordDTO resetPasswordDTO);
         Task<TokenResponseDTO?> ExternalLoginAsync(ExternalLoginDTO loginDTO);
+        Task<bool> RevokeRefreshTokenAsync(string refreshToken, string? ipAddress = null);
+        Task<bool> RevokeAllUserRefreshTokensAsync(string userId, string? ipAddress = null);
 
 
     }
