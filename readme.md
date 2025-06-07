@@ -1,7 +1,7 @@
 
 # 🔐 JWTAuthDotNetIdentity
 
-A complete Authentication & Authorization system built with **ASP.NET Core 8**, **JWT**, **Google OAuth**, and **ASP.NET Identity**. This API-first project supports secure login, token refresh, external authentication, password reset, and account removal — with token-based email flows for sensitive operations.
+A complete Authentication & Authorization system built with **ASP.NET Core 8**, **JWT**, **Google OAuth**, and **ASP.NET Identity**. This API-first project supports secure login, token refresh, external authentication, password reset, password change, Email reset, Email Change and account removal — with token-based email flows for sensitive operations.
 
 ---
 
@@ -30,7 +30,8 @@ A complete Authentication & Authorization system built with **ASP.NET Core 8**, 
 ├── Models/
 │   ├── DTO/
 │   ├── Entities/
-│   └── Response/
+│   └── ApiResponse.cs
+|   |__ MailData.cs
 ├── Services/
 │   ├── IAuthService.cs
 │   ├── IMailService.cs
@@ -98,8 +99,8 @@ A complete Authentication & Authorization system built with **ASP.NET Core 8**, 
 
 Implements `IMailService` to send transactional emails:
 
-* **Reset password link**
-* **Remove account link**
+* **Reset password token**
+* **Remove account token**
 
 **MailSettings** are configured in `appsettings.json`:
 
