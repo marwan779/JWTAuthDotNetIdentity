@@ -421,8 +421,8 @@ namespace JWTAuthDotNetIdentity.Services
 
         private async Task<ApplicationUser ?> ValidateRefreshToken(TokenRequestDTO tokenRequestDTO)
         {
-            ApplicationUser? applicationUser = await _context.ApplicationUsers
-                .FirstOrDefaultAsync(u => u.Id == tokenRequestDTO.UserId);
+            //ApplicationUser? applicationUser = await _context.ApplicationUsers
+            //    .FirstOrDefaultAsync(u => u.Id == tokenRequestDTO.UserId);
 
             //if(applicationUser == null 
             //    || applicationUser.RefreshToken != tokenRequestDTO.RefreshToken
@@ -431,7 +431,7 @@ namespace JWTAuthDotNetIdentity.Services
             //    return null;
             //}
 
-            return applicationUser;
+            return null;
         }
 
        
