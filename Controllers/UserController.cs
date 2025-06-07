@@ -128,7 +128,7 @@ namespace JWTAuthDotNetIdentity.Controllers
 
             if (!result) return BadRequest();
 
-            return Ok("An email is sent to you with the required token, blease check your inbox");
+            return Ok("An email is sent to you with the required token, please check your inbox");
 
         }
 
@@ -283,7 +283,7 @@ namespace JWTAuthDotNetIdentity.Controllers
 
             if (!result) return BadRequest();
 
-            return Ok("An email is sent to you with the required token, blease check your inbox");
+            return Ok("An email is sent to you with the required token, please check your inbox");
 
         }
 
