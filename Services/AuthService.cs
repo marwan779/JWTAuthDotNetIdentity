@@ -235,6 +235,47 @@ namespace JWTAuthDotNetIdentity.Services
 
         }
 
+        public async Task<ApiResponse?> ChangeEmailAsync(string userId, ChangeEmailDTO changeEmailDTO)
+        {
+            ApplicationUser? applicationUser = await _context.ApplicationUsers
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (applicationUser == null)
+            {
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.NotFound,
+                    ErrorMessage = "No such user !",
+                    Result = null,
+                };
+            }
+
+            var result = await _userManager
+                .ChangeEmailAsync(applicationUser, changeEmailDTO.CurrentEmail, changeEmailDTO.NewEmail);
+
+            if (!result.Succeeded)
+            {
+                var errorDescription = string.Join("; ", result.Errors.Select(e => e.Description));
+
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.BadRequest,
+                    ErrorMessage = errorDescription,
+                    Result = null,
+                };
+            }
+
+            return new ApiResponse()
+            {
+                IsSuccess = true,
+                StatusCode = HttpStatusCode.OK,
+            };
+
+            throw new NotImplementedException();
+        }
+
         public async Task<ApiResponse?> GenerateResetPasswordTokenAsync(string Email)
         {
             ApplicationUser? applicationUser = await _userManager.FindByEmailAsync(Email);
@@ -588,6 +629,6 @@ namespace JWTAuthDotNetIdentity.Services
             return true;
         }
 
-
+        
     }
 }

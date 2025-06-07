@@ -10,6 +10,7 @@ namespace JWTAuthDotNetIdentity.Services
         Task<ApiResponse?> LoginAsync(LoginDTO loginDTO);
         Task<TokenResponseDTO?> RefreshTokensAsync(TokenRequestDTO tokenRequestDTO);
         Task<ApiResponse?> ChangePasswordAsync(string userId, ChangePasswordDTO changePasswordDTO);
+        Task<ApiResponse?> ChangeEmailAsync(string userId, ChangeEmailDTO changeEmailDTO);
         Task<ApiResponse?> GenerateResetPasswordTokenAsync(string Email);
         Task<ApiResponse?> ResetPasswordAsync(ResetPasswordDTO resetPasswordDTO);
         Task<TokenResponseDTO?> ExternalLoginAsync(ExternalLoginDTO loginDTO);

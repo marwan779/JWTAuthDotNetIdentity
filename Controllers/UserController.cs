@@ -161,6 +161,22 @@ namespace JWTAuthDotNetIdentity.Controllers
             return Ok(ApiResponse);
         }
 
+        [Authorize]
+        [HttpPost("Change-Email")]
+        public async Task<IActionResult> ChangeEmail(ChangeEmailDTO changeEmailDTO)
+        {
+            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            ApiResponse = await _authService.ChangeEmailAsync(userId, changeEmailDTO);
+
+            if (!ApiResponse.IsSuccess)
+            {
+                return BadRequest(ApiResponse.ErrorMessage);
+            }
+
+            return Ok(ApiResponse);
+        }
+
         [HttpGet("login-google")]
         public IActionResult LoginWithGoogle()
         {
