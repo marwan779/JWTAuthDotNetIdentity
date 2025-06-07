@@ -340,9 +340,18 @@ namespace JWTAuthDotNetIdentity.Services
 
         }
 
-        public Task<ApiResponse?> LogoutAsync(string userId)
+        public async Task<bool> LogoutAsync(string userId)
         {
-            throw new NotImplementedException();
+            ApplicationUser? applicationUser = await _context.ApplicationUsers
+                .FirstOrDefaultAsync(a => a.Id == userId);
+            if(applicationUser == null) return false;
+
+            //applicationUser.RefreshTokenExpirationDate = DateTime.Now;
+
+            _context.ApplicationUsers.Update(applicationUser);
+            await _context.SaveChangesAsync();
+
+            return true;
         }
 
         private bool UserNameUnique(string userName)
@@ -404,8 +413,8 @@ namespace JWTAuthDotNetIdentity.Services
         private async Task<string> SaveRefreshToken(ApplicationUser applicationUser)
         {
             string refreshToken = await GenerateRefreshToken();
-            applicationUser.RefreshToken = refreshToken;
-            applicationUser.RefreshTokenExpirationDate = DateTime.Now.AddDays(7);
+            //applicationUser.RefreshToken = refreshToken;
+            //applicationUser.RefreshTokenExpirationDate = DateTime.Now.AddDays(7);
             await _context.SaveChangesAsync();
             return refreshToken;
         }
@@ -415,12 +424,12 @@ namespace JWTAuthDotNetIdentity.Services
             ApplicationUser? applicationUser = await _context.ApplicationUsers
                 .FirstOrDefaultAsync(u => u.Id == tokenRequestDTO.UserId);
 
-            if(applicationUser == null 
-                || applicationUser.RefreshToken != tokenRequestDTO.RefreshToken
-                || applicationUser.RefreshTokenExpirationDate <= DateTime.Now)
-            {
-                return null;
-            }
+            //if(applicationUser == null 
+            //    || applicationUser.RefreshToken != tokenRequestDTO.RefreshToken
+            //    || applicationUser.RefreshTokenExpirationDate <= DateTime.Now)
+            //{
+            //    return null;
+            //}
 
             return applicationUser;
         }

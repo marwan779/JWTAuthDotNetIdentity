@@ -208,6 +208,12 @@ namespace JWTAuthDotNetIdentity.Controllers
         public async Task<IActionResult> Logout()
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            bool result = await _authService.LogoutAsync(userId);
+
+            if (!result) return BadRequest();
+
+            return Ok(result);
         }
 
         // For testing 
