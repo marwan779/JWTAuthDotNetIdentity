@@ -15,6 +15,9 @@ namespace JWTAuthDotNetIdentity.Services
         Task<TokenResponseDTO?> ExternalLoginAsync(ExternalLoginDTO loginDTO);
         Task<bool> RevokeRefreshTokenAsync(string refreshToken, string? ipAddress = null);
         Task<bool> RevokeAllUserRefreshTokensAsync(string userId, string? ipAddress = null);
+        Task<ApiResponse?> GenerateRemoveAccountTokenAsync(string Email);
+        Task<ApiResponse?> RemoveAccountAsync(RemoveAccountDTO removeAccountDTO, string userId);
+        
 
 
     }

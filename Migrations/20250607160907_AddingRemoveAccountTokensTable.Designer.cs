@@ -4,6 +4,7 @@ using JWTAuthDotNetIdentity.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace JWTAuthDotNetIdentity.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250607160907_AddingRemoveAccountTokensTable")]
+    partial class AddingRemoveAccountTokensTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -91,37 +94,6 @@ namespace JWTAuthDotNetIdentity.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
-            modelBuilder.Entity("JWTAuthDotNetIdentity.Models.Entities.RemoveAccountToken", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ApplicationUserId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsUsed")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ApplicationUserId");
-
-                    b.ToTable("RemoveAccountTokens");
-                });
-
             modelBuilder.Entity("JWTAuthDotNetIdentity.Models.Entities.ResetPasswordToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -131,6 +103,11 @@ namespace JWTAuthDotNetIdentity.Migrations
                     b.Property<string>("ApplicationUserId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Discriminator")
+                        .IsRequired()
+                        .HasMaxLength(21)
+                        .HasColumnType("nvarchar(21)");
 
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("datetime2");
@@ -151,6 +128,10 @@ namespace JWTAuthDotNetIdentity.Migrations
                     b.HasIndex("ApplicationUserId");
 
                     b.ToTable("ResetPasswordTokens");
+
+                    b.HasDiscriminator().HasValue("ResetPasswordToken");
+
+                    b.UseTphMappingStrategy();
                 });
 
             modelBuilder.Entity("JWTAuthDotNetIdentity.Models.RefreshToken", b =>
@@ -333,13 +314,9 @@ namespace JWTAuthDotNetIdentity.Migrations
 
             modelBuilder.Entity("JWTAuthDotNetIdentity.Models.Entities.RemoveAccountToken", b =>
                 {
-                    b.HasOne("JWTAuthDotNetIdentity.Models.Entities.ApplicationUser", "ApplicationUser")
-                        .WithMany()
-                        .HasForeignKey("ApplicationUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.HasBaseType("JWTAuthDotNetIdentity.Models.Entities.ResetPasswordToken");
 
-                    b.Navigation("ApplicationUser");
+                    b.HasDiscriminator().HasValue("RemoveAccountToken");
                 });
 
             modelBuilder.Entity("JWTAuthDotNetIdentity.Models.Entities.ResetPasswordToken", b =>

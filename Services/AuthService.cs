@@ -271,7 +271,7 @@ namespace JWTAuthDotNetIdentity.Services
 
         public async Task<ApiResponse?> ResetPasswordAsync(ResetPasswordDTO resetPasswordDTO)
         {
-            ResetPasswordToken? resetPasswordToken = 
+            ResetPasswordToken? resetPasswordToken =
                 await _context.ResetPasswordTokens.FirstOrDefaultAsync(t => t.Id == resetPasswordDTO.TokenId);
 
             if (resetPasswordToken == null || resetPasswordToken.IsUsed == true)
@@ -283,7 +283,7 @@ namespace JWTAuthDotNetIdentity.Services
                     Result = null,
                 };
 
-            if(resetPasswordToken.ExpiresAt <= DateTime.Now)
+            if (resetPasswordToken.ExpiresAt <= DateTime.Now)
                 return new ApiResponse()
                 {
                     IsSuccess = false,
@@ -298,7 +298,7 @@ namespace JWTAuthDotNetIdentity.Services
             var result = await _userManager
                 .ResetPasswordAsync(applicationUser, resetPasswordToken.Token, resetPasswordDTO.NewPassword);
 
-            if(!result.Succeeded)
+            if (!result.Succeeded)
             {
                 var errorDescription = string.Join("; ", result.Errors.Select(e => e.Description));
 
@@ -354,9 +354,120 @@ namespace JWTAuthDotNetIdentity.Services
             {
                 AccessToken = await GenerateAccessToken(user),
                 RefreshToken = await SaveRefreshTokenAsync(user),
-                AccessTokenExpires = DateTime.UtcNow.AddMinutes(30), 
+                AccessTokenExpires = DateTime.UtcNow.AddMinutes(30),
                 RefreshTokenExpires = DateTime.UtcNow.AddDays(7)
             };
+
+        }
+
+        public async Task<ApiResponse?> GenerateRemoveAccountTokenAsync(string Email)
+        {
+            ApplicationUser? applicationUser = await _userManager.FindByEmailAsync(Email);
+
+            if (applicationUser == null)
+            {
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.NotFound,
+                    ErrorMessage = "No user with this email found",
+                    Result = null,
+                };
+            }
+
+            RemoveAccountToken removeAccountToken = new RemoveAccountToken()
+            {
+                UserId = applicationUser.Id,
+                ExpiresAt = DateTime.Now.AddMinutes(15),
+                Token = await _userManager.GeneratePasswordResetTokenAsync(applicationUser),
+                ApplicationUser = applicationUser
+            };
+
+            _context.RemoveAccountTokens.Add(removeAccountToken);
+            await _context.SaveChangesAsync();
+
+            return new ApiResponse()
+            {
+                IsSuccess = true,
+                StatusCode = HttpStatusCode.OK,
+                Result = removeAccountToken,
+            };
+        }
+        public async Task<ApiResponse?> RemoveAccountAsync(RemoveAccountDTO removeAccountDTO, string userId)
+        {
+
+            RemoveAccountToken? removeAccountToken =
+               await _context.RemoveAccountTokens.FirstOrDefaultAsync(t => t.Id == removeAccountDTO.TokenId);
+
+            if (removeAccountToken == null || removeAccountToken.IsUsed == true)
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.NotFound,
+                    ErrorMessage = "Invaild Token !",
+                    Result = null,
+                };
+
+            if (removeAccountToken.UserId != userId)
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.NotFound,
+                    ErrorMessage = "You Must Be Logged Into this Account To Delete It !",
+                    Result = null,
+                };
+
+            if (removeAccountToken.ExpiresAt <= DateTime.Now)
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.NotFound,
+                    ErrorMessage = "Expired Token !",
+                    Result = null,
+                };
+
+            ApplicationUser? applicationUser = await _context.ApplicationUsers
+                .FirstOrDefaultAsync(a => a.Id == removeAccountToken.UserId);
+
+            if (applicationUser == null)
+                return new ApiResponse()
+                {
+                    ErrorMessage = "User not found",
+                    IsSuccess = false,
+                };
+            var userLogins = await _userManager.GetLoginsAsync(applicationUser);
+            bool hasExternalLogins = userLogins.Any();
+
+            if (!hasExternalLogins)
+            {
+                if(String.IsNullOrEmpty(removeAccountDTO.Password))
+                    return new ApiResponse()
+                    {
+                        ErrorMessage = "Password Is Required !",
+                        IsSuccess = false,
+                    };
+
+                bool result = await _userManager.CheckPasswordAsync(applicationUser, removeAccountDTO.Password);
+
+                if (!result)
+                    return new ApiResponse()
+                    {
+                        ErrorMessage = "Wrong Password",
+                        IsSuccess = false,
+                    };
+            }
+
+            var deleted = await _userManager.DeleteAsync(applicationUser);
+
+            if (!deleted.Succeeded)
+                return new ApiResponse()
+                {
+                    ErrorMessage = "Failed to delete account",
+                    IsSuccess = false,
+                };
+
+            await RevokeAllUserRefreshTokensAsync(removeAccountToken.UserId);
+            return new ApiResponse { IsSuccess = true };
 
         }
 
@@ -440,7 +551,7 @@ namespace JWTAuthDotNetIdentity.Services
 
         private async Task<bool> ValidateRefreshToken(RefreshToken refreshToken)
         {
-            if( refreshToken == null  || !refreshToken.IsActive || refreshToken.IsExpired) return false;
+            if (refreshToken == null || !refreshToken.IsActive || refreshToken.IsExpired) return false;
 
             return true;
         }
@@ -451,7 +562,7 @@ namespace JWTAuthDotNetIdentity.Services
             RefreshToken? refreshToken1 = await _context.RefreshTokens
                 .FirstOrDefaultAsync(r => r.Token == refreshToken);
 
-            if( refreshToken1 == null || !refreshToken1.IsActive) return false;
+            if (refreshToken1 == null || !refreshToken1.IsActive) return false;
 
             refreshToken1.RevokedAt = DateTime.Now;
             refreshToken1.RevokedByIp = ipAddress ?? GetClientIpAddress();
@@ -463,10 +574,10 @@ namespace JWTAuthDotNetIdentity.Services
 
         public async Task<bool> RevokeAllUserRefreshTokensAsync(string userId, string? ipAddress = null)
         {
-           List<RefreshToken>? refreshTokens = await _context.RefreshTokens
-                .Where(r => r.UserId == userId && r.IsActive == true).ToListAsync();
+            List<RefreshToken>? refreshTokens = await _context.RefreshTokens
+                 .Where(r => r.UserId == userId && r.IsActive == true).ToListAsync();
 
-            if(refreshTokens == null ) return false;
+            if (refreshTokens == null) return false;
 
             foreach (RefreshToken refreshToken in refreshTokens)
             {
@@ -476,5 +587,7 @@ namespace JWTAuthDotNetIdentity.Services
             await _context.SaveChangesAsync();
             return true;
         }
+
+
     }
 }
