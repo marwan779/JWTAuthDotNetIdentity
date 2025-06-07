@@ -18,13 +18,16 @@ namespace JWTAuthDotNetIdentity.Services
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IConfiguration _config;
+        private readonly IHttpContextAccessor _httpContextAccessor;
         public AuthService(ApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
-            IConfiguration config)
+            IConfiguration config,
+            IHttpContextAccessor httpContextAccessor)
         {
             _context = context;
             _userManager = userManager;
             _config = config;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<ApiResponse?> LoginAsync(LoginDTO loginDTO)
@@ -32,7 +35,8 @@ namespace JWTAuthDotNetIdentity.Services
             if (loginDTO == null)
                 return null;
 
-            ApplicationUser? applicationUser = await _context.ApplicationUsers.FirstOrDefaultAsync(u => u.UserName == loginDTO.UserName);
+            ApplicationUser? applicationUser = await _context.ApplicationUsers
+                .FirstOrDefaultAsync(u => u.UserName == loginDTO.UserName);
 
             if (applicationUser == null)
                 return new ApiResponse()
@@ -54,11 +58,12 @@ namespace JWTAuthDotNetIdentity.Services
                     StatusCode = HttpStatusCode.BadRequest
                 };
 
-
             TokenResponseDTO tokenResponseDTO = new TokenResponseDTO()
             {
                 AccessToken = await GenerateAccessToken(applicationUser),
-                RefreshToken = await SaveRefreshToken(applicationUser),
+                RefreshToken = await SaveRefreshTokenAsync(applicationUser),
+                AccessTokenExpires = DateTime.UtcNow.AddMinutes(30),
+                RefreshTokenExpires = DateTime.UtcNow.AddDays(7)
             };
 
 
@@ -162,17 +167,30 @@ namespace JWTAuthDotNetIdentity.Services
 
         public async Task<TokenResponseDTO?> RefreshTokensAsync(TokenRequestDTO tokenRequestDTO)
         {
-            ApplicationUser? applicationUser = await ValidateRefreshToken(tokenRequestDTO);
+            RefreshToken? refreshToken = await _context.RefreshTokens
+                .Include(r => r.User)
+                .FirstOrDefaultAsync(r => r.Token == tokenRequestDTO.RefreshToken);
 
-            if (applicationUser == null)
-            {
-                return null;
-            }
+            bool result = !await ValidateRefreshToken(refreshToken);
+            if (result) return null;
+
+            string ipAddress = GetClientIpAddress();
+
+            refreshToken.RevokedAt = DateTime.Now;
+            refreshToken.RevokedByIp = ipAddress;
+
+            string newRefreshToken = await SaveRefreshTokenAsync(refreshToken.User, ipAddress);
+
+            refreshToken.ReplacedByToken = newRefreshToken;
+
+            await _context.SaveChangesAsync();
 
             return new TokenResponseDTO()
             {
-                AccessToken = await GenerateAccessToken(applicationUser),
-                RefreshToken = await SaveRefreshToken(applicationUser),
+                AccessToken = await GenerateAccessToken(refreshToken.User),
+                RefreshToken = newRefreshToken,
+                AccessTokenExpires = DateTime.Now.AddMinutes(30),
+                RefreshTokenExpires = DateTime.Now.AddDays(7),
             };
         }
 
@@ -335,23 +353,11 @@ namespace JWTAuthDotNetIdentity.Services
             return new TokenResponseDTO()
             {
                 AccessToken = await GenerateAccessToken(user),
-                RefreshToken = await SaveRefreshToken(user)
+                RefreshToken = await SaveRefreshTokenAsync(user),
+                AccessTokenExpires = DateTime.UtcNow.AddMinutes(30), 
+                RefreshTokenExpires = DateTime.UtcNow.AddDays(7)
             };
 
-        }
-
-        public async Task<bool> LogoutAsync(string userId)
-        {
-            ApplicationUser? applicationUser = await _context.ApplicationUsers
-                .FirstOrDefaultAsync(a => a.Id == userId);
-            if(applicationUser == null) return false;
-
-            //applicationUser.RefreshTokenExpirationDate = DateTime.Now;
-
-            _context.ApplicationUsers.Update(applicationUser);
-            await _context.SaveChangesAsync();
-
-            return true;
         }
 
         private bool UserNameUnique(string userName)
@@ -393,7 +399,7 @@ namespace JWTAuthDotNetIdentity.Services
                     audience: _config.GetValue<string>("AppSettings:Audience"),
                     claims: claims,
                     signingCredentials: creds,
-                    expires: DateTime.Now.AddDays(1)
+                    expires: DateTime.Now.AddMinutes(30)
                 );
 
             string finalToken = new JwtSecurityTokenHandler().WriteToken(tokenDescriptor);
@@ -404,36 +410,71 @@ namespace JWTAuthDotNetIdentity.Services
 
         private async Task<string> GenerateRefreshToken()
         {
-            var randomNumber = new byte[32];
+            var randomNumber = new byte[64];
             using var rng = RandomNumberGenerator.Create();
             rng.GetBytes(randomNumber);
             return Convert.ToBase64String(randomNumber);
         }
 
-        private async Task<string> SaveRefreshToken(ApplicationUser applicationUser)
+        private async Task<string> SaveRefreshTokenAsync(ApplicationUser user, string? ipAddress = null)
         {
-            string refreshToken = await GenerateRefreshToken();
-            //applicationUser.RefreshToken = refreshToken;
-            //applicationUser.RefreshTokenExpirationDate = DateTime.Now.AddDays(7);
+            RefreshToken refreshToken = new RefreshToken()
+            {
+                Token = await GenerateRefreshToken(),
+                UserId = user.Id,
+                CreatedAt = DateTime.Now,
+                ExpiresAt = DateTime.Now.AddDays(7),
+                CreatedByIp = ipAddress ?? "Unknown"
+            };
+
+            await _context.AddAsync(refreshToken);
             await _context.SaveChangesAsync();
-            return refreshToken;
+
+            return refreshToken.Token;
         }
 
-        private async Task<ApplicationUser ?> ValidateRefreshToken(TokenRequestDTO tokenRequestDTO)
+        private string GetClientIpAddress()
         {
-            //ApplicationUser? applicationUser = await _context.ApplicationUsers
-            //    .FirstOrDefaultAsync(u => u.Id == tokenRequestDTO.UserId);
-
-            //if(applicationUser == null 
-            //    || applicationUser.RefreshToken != tokenRequestDTO.RefreshToken
-            //    || applicationUser.RefreshTokenExpirationDate <= DateTime.Now)
-            //{
-            //    return null;
-            //}
-
-            return null;
+            return _httpContextAccessor?.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "Unknown";
         }
 
-       
+        private async Task<bool> ValidateRefreshToken(RefreshToken refreshToken)
+        {
+            if( refreshToken == null  || !refreshToken.IsActive || refreshToken.IsExpired) return false;
+
+            return true;
+        }
+
+        public async Task<bool> RevokeRefreshTokenAsync(string refreshToken, string? ipAddress = null)
+        {
+
+            RefreshToken? refreshToken1 = await _context.RefreshTokens
+                .FirstOrDefaultAsync(r => r.Token == refreshToken);
+
+            if( refreshToken1 == null || !refreshToken1.IsActive) return false;
+
+            refreshToken1.RevokedAt = DateTime.Now;
+            refreshToken1.RevokedByIp = ipAddress ?? GetClientIpAddress();
+
+            await _context.SaveChangesAsync();
+            return true;
+
+        }
+
+        public async Task<bool> RevokeAllUserRefreshTokensAsync(string userId, string? ipAddress = null)
+        {
+           List<RefreshToken>? refreshTokens = await _context.RefreshTokens
+                .Where(r => r.UserId == userId && r.IsActive == true).ToListAsync();
+
+            if(refreshTokens == null ) return false;
+
+            foreach (RefreshToken refreshToken in refreshTokens)
+            {
+                refreshToken.RevokedAt = DateTime.Now;
+                refreshToken.RevokedByIp = ipAddress ?? GetClientIpAddress();
+            }
+            await _context.SaveChangesAsync();
+            return true;
+        }
     }
 }

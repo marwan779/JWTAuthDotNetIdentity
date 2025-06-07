@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Tokens;
 
 namespace JWTAuthDotNetIdentity.Controllers
 {
@@ -205,15 +206,24 @@ namespace JWTAuthDotNetIdentity.Controllers
 
         [Authorize]
         [HttpGet]
-        public async Task<IActionResult> Logout()
+        public async Task<IActionResult> Logout(TokenRequestDTO tokenRequestDTO)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            bool result = await _authService.LogoutAsync(userId);
+            if (String.IsNullOrEmpty(userId)) return BadRequest();
 
-            if (!result) return BadRequest();
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
 
-            return Ok(result);
+            if(tokenRequestDTO!= null || !String.IsNullOrEmpty(tokenRequestDTO.RefreshToken))
+            {
+                await _authService.RevokeRefreshTokenAsync(tokenRequestDTO.RefreshToken, ipAddress);
+            }
+            else
+            {
+                await _authService.RevokeAllUserRefreshTokensAsync(userId, ipAddress);
+            }
+
+            return Ok();
         }
 
         // For testing 
