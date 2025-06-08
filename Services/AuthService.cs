@@ -235,45 +235,134 @@ namespace JWTAuthDotNetIdentity.Services
 
         }
 
-        public async Task<ApiResponse?> ChangeEmailAsync(string userId, ChangeEmailDTO changeEmailDTO)
+        public async Task<ApiResponse?> GenerateChangeEmailTokenAsync(string userId, ChangeEmailRequestDTO changeEmailRequestDTO)
         {
             ApplicationUser? applicationUser = await _context.ApplicationUsers
-                .FirstOrDefaultAsync(u => u.Id == userId);
+                .FirstOrDefaultAsync (u => u.Id == userId);
 
             if (applicationUser == null)
-            {
                 return new ApiResponse()
                 {
                     IsSuccess = false,
                     StatusCode = HttpStatusCode.NotFound,
-                    ErrorMessage = "No such user !",
-                    Result = null,
+                    ErrorMessage = "User not found !"
                 };
-            }
 
-            var result = await _userManager
-                .ChangeEmailAsync(applicationUser, changeEmailDTO.CurrentEmail, changeEmailDTO.NewEmail);
-
-            if (!result.Succeeded)
-            {
-                var errorDescription = string.Join("; ", result.Errors.Select(e => e.Description));
-
+            var userLogins = await _userManager.GetLoginsAsync(applicationUser);
+            bool externalUser = userLogins.Any();
+            
+            if(externalUser)
                 return new ApiResponse()
                 {
                     IsSuccess = false,
                     StatusCode = HttpStatusCode.BadRequest,
-                    ErrorMessage = errorDescription,
-                    Result = null,
+                    ErrorMessage = "Your account is currently linked to Google authentication, which means your email address is managed through your Google account."
                 };
-            }
+
+            bool passwordResult = await _userManager.CheckPasswordAsync(applicationUser, changeEmailRequestDTO.Password);
+
+            if(!passwordResult)
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.BadRequest,
+                    ErrorMessage = "Worng password !"
+                };
+
+            ApplicationUser? applicationUser1 = await _userManager.FindByEmailAsync(changeEmailRequestDTO.NewEmail);
+
+            if(applicationUser1 != null)
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.BadRequest,
+                    ErrorMessage = "A user with this email already exists !"
+                };
+
+            string token = await _userManager.GenerateChangeEmailTokenAsync(applicationUser, changeEmailRequestDTO.NewEmail);
+
+            ChangeEmailToken changeEmailToken = new ChangeEmailToken()
+            {
+                Token = token,
+                UserId = userId,
+                ExpiresAt = DateTime.Now.AddMinutes(15),
+                ApplicationUser = applicationUser
+            };
+
+            _context.ChangeEmailTokens.Add(changeEmailToken);
+            await _context.SaveChangesAsync();
+
+            return new ApiResponse()
+            { IsSuccess = true, StatusCode = HttpStatusCode.OK, Result = changeEmailToken};
+
+        }
+
+        public async Task<ApiResponse?> ConfirmEmailChangeAsync(string userId, ConfirmEmailChangeDTO confirmEmailChangeDTO)
+        {
+            ApplicationUser? applicationUser = await _context.ApplicationUsers
+               .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (applicationUser == null)
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.NotFound,
+                    ErrorMessage = "User not found !"
+                };
+
+            ApplicationUser? applicationUser1 = await _userManager.FindByEmailAsync(confirmEmailChangeDTO.NewEmail);
+
+            if (applicationUser1 != null)
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.BadRequest,
+                    ErrorMessage = "A user with this email already exists !"
+                };
+
+            ChangeEmailToken? changeEmailToken = await _context.ChangeEmailTokens
+                .FirstOrDefaultAsync(c => c.Id == confirmEmailChangeDTO.Token);
+
+            if (changeEmailToken == null)
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.NotFound,
+                    ErrorMessage = "Invaild Token!"
+                };
+
+            if (changeEmailToken.IsUsed || changeEmailToken.ExpiresAt <= DateTime.Now)
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.NotFound,
+                    ErrorMessage = "This token is used or expired !"
+                };
+
+            changeEmailToken.IsUsed = true;
+
+            _context.ChangeEmailTokens.Update(changeEmailToken);
+            await _context.SaveChangesAsync();
+
+            var changEmailResult = await _userManager
+                .ChangeEmailAsync(applicationUser, confirmEmailChangeDTO.NewEmail, changeEmailToken.Token);
+
+            if (!changEmailResult.Succeeded)
+                return new ApiResponse()
+                {
+                    IsSuccess = false,
+                    StatusCode = HttpStatusCode.BadRequest,
+                    ErrorMessage = "Failed to change email !"
+                };
+
 
             return new ApiResponse()
             {
                 IsSuccess = true,
                 StatusCode = HttpStatusCode.OK,
+                Result = applicationUser
             };
 
-            throw new NotImplementedException();
         }
 
         public async Task<ApiResponse?> GenerateResetPasswordTokenAsync(string Email)
@@ -353,7 +442,6 @@ namespace JWTAuthDotNetIdentity.Services
             }
 
             resetPasswordToken.IsUsed = true;
-            resetPasswordToken.ExpiresAt = DateTime.Now;
 
             _context.ResetPasswordTokens.Update(resetPasswordToken);
             await _context.SaveChangesAsync();
@@ -498,6 +586,7 @@ namespace JWTAuthDotNetIdentity.Services
                     };
             }
 
+
             var deleted = await _userManager.DeleteAsync(applicationUser);
 
             if (!deleted.Succeeded)
@@ -507,8 +596,10 @@ namespace JWTAuthDotNetIdentity.Services
                     IsSuccess = false,
                 };
 
+            
+
             await RevokeAllUserRefreshTokensAsync(removeAccountToken.UserId);
-            return new ApiResponse { IsSuccess = true };
+            return new ApiResponse { IsSuccess = true, StatusCode = HttpStatusCode.OK};
 
         }
 

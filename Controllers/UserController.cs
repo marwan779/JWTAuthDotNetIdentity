@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace JWTAuthDotNetIdentity.Controllers
 {
@@ -162,19 +163,107 @@ namespace JWTAuthDotNetIdentity.Controllers
         }
 
         [Authorize]
-        [HttpPost("Change-Email")]
-        public async Task<IActionResult> ChangeEmail(ChangeEmailDTO changeEmailDTO)
+        [HttpPost("Get-Change-Email-Token")]
+        public async Task<IActionResult> GetChangeEmailToken(ChangeEmailRequestDTO changeEmailRequestDTO)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            ApiResponse = await _authService.ChangeEmailAsync(userId, changeEmailDTO);
+            ApiResponse = await _authService.GenerateChangeEmailTokenAsync(userId, changeEmailRequestDTO);
 
             if (!ApiResponse.IsSuccess)
             {
                 return BadRequest(ApiResponse.ErrorMessage);
             }
 
-            return Ok(ApiResponse);
+
+            ChangeEmailToken changeEmailToken = (ChangeEmailToken) ApiResponse.Result;
+
+            MailData mailData = new MailData()
+            {
+                EmailToId = changeEmailRequestDTO.NewEmail,
+                EmailToName = changeEmailToken.ApplicationUser.UserName,
+                EmailSubject = "Change your email",
+                EmailBody = $@"
+                Hello {changeEmailToken.ApplicationUser.UserName},
+
+                You recently requested to change your email.
+
+                Here is your change email token:
+
+                {changeEmailToken.Id}
+
+                This token will expire on {changeEmailToken.ExpiresAt:u} and can only be used once.
+
+                To complete the change email, copy this token and paste it into the change email form in the app or website.
+
+                If you did not request this, please ignore this message.
+
+                Thanks,  
+                JWT Authentication .NET Identity"
+            };
+
+            bool mailResult = _mailService.SendMail(mailData);
+
+            if (!mailResult) return BadRequest("Failed to send email");
+
+            return Ok("An confirmation token is sent to your new email, please check your inbox");
+        }
+
+        [Authorize]
+        [HttpPost("Confirm-Change-Email")]
+        public async Task<IActionResult> ConfirmChangeEmail(ConfirmEmailChangeDTO confirmEmailChangeDTO)
+        {
+            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            ApiResponse = await _authService.ConfirmEmailChangeAsync(userId, confirmEmailChangeDTO);
+
+            if (!ApiResponse.IsSuccess)
+                return BadRequest(ApiResponse.ErrorMessage);
+
+            ApplicationUser applicationUser = (ApplicationUser) ApiResponse.Result;
+
+            MailData newMailData = new MailData()
+            {
+                EmailToId = confirmEmailChangeDTO.NewEmail,
+                EmailToName = applicationUser.UserName,
+                EmailSubject = "Email address successfully changed",
+                EmailBody = $@"
+                Hello {applicationUser.UserName},
+    
+                Your email address has been successfully updated for your account.
+    
+                Account Details:
+                • Previous email: {applicationUser.Email}
+                • New email: {confirmEmailChangeDTO.NewEmail} (this email)
+                • Changed on: {DateTime.UtcNow:u}
+                • Account: {applicationUser.UserName}
+    
+                This change was completed after you successfully verified ownership of this email address.
+    
+                What this means:
+                • You will now receive all account notifications at this email address
+                • Use this email address for future logins
+                • All security communications will be sent here
+    
+                If you did not make this change, please contact our support team immediately.
+    
+                For your security, we recommend:
+                • Review your recent account activity
+                • Ensure your account recovery information is up to date
+                • Keep your password secure and unique
+    
+                Thank you for keeping your account information current.
+    
+                Thanks,  
+                JWT Authentication .NET Identity"
+            };
+
+            bool newMailResult = _mailService.SendMail(newMailData);
+
+            if (!newMailResult)
+                return BadRequest("Failed to send email");
+
+            return Ok("An confirmation emails is sent to your new email, please check your inbox");
         }
 
         [HttpGet("login-google")]
